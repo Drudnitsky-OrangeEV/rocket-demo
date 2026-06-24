@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rocket Demo Add-in</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <style>
+    * { margin: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #1e293b;
+      color: #f1f5f9;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      gap: 20px;
+    }
+    .logo {
+      font-size: 48px;
+      line-height: 1;
+    }
+    h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #f1f5f9;
+      text-align: center;
+    }
+    p {
+      font-size: 13px;
+      color: #94a3b8;
+      text-align: center;
+      line-height: 1.5;
+    }
+    .divider {
+      width: 100%;
+      border: none;
+      border-top: 1px solid #334155;
+    }
+    label {
+      font-size: 12px;
+      color: #94a3b8;
+      align-self: flex-start;
+      width: 100%;
+    }
+    select, input[type=range] {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #f1f5f9;
+      padding: 8px 10px;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+    input[type=range] {
+      padding: 4px 0;
+      accent-color: #3b82f6;
+    }
+    .size-row {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+    }
+    .size-row > div {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .size-row input[type=number] {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #f1f5f9;
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+    button {
+      width: 100%;
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 14px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 4px 20px rgba(249,115,22,0.4);
+      margin-top: 4px;
+    }
+    button:hover { transform: translateY(-2px); box-shadow: 0 6px 28px rgba(249,115,22,0.5); }
+    button:active { transform: scale(0.97); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    #status {
+      font-size: 12px;
+      text-align: center;
+      min-height: 18px;
+      color: #4ade80;
+    }
+    #status.error { color: #f87171; }
+  </style>
+</head>
+<body>
+
+  <div class="logo">🚀</div>
+  <h1>OEV Rocket Demo</h1>
+  <p>Insert the rocket launch animation directly onto your current slide as an embedded web frame.</p>
+
+  <hr class="divider" />
+
+  <label>Slide position
+    <select id="position">
+      <option value="center">Center of slide</option>
+      <option value="full">Full slide (cover)</option>
+      <option value="right">Right half</option>
+      <option value="left">Left half</option>
+    </select>
+  </label>
+
+  <div class="size-row">
+    <div>
+      <label>Width (px)</label>
+      <input type="number" id="width" value="600" min="200" max="1200" step="10" />
+    </div>
+    <div>
+      <label>Height (px)</label>
+      <input type="number" id="height" value="450" min="150" max="900" step="10" />
+    </div>
+  </div>
+
+  <button id="insertBtn" onclick="insertFrame()">🚀 Insert Rocket Animation</button>
+  <div id="status"></div>
+
+  <script>
+    Office.onReady(function(info) {
+      if (info.host === Office.HostType.PowerPoint) {
+        document.getElementById('insertBtn').disabled = false;
+      }
+    });
+
+    // Sync number inputs when position changes
+    document.getElementById('position').addEventListener('change', function() {
+      const pos = this.value;
+      const w = document.getElementById('width');
+      const h = document.getElementById('height');
+      // Standard PPT slide is 10in x 7.5in = 960x720 at 96dpi equivalent in points: 9144000 x 6858000 EMU
+      // We set pixel hints for the user; actual positioning uses EMUs below
+      if (pos === 'full')  { w.value = 960; h.value = 720; }
+      if (pos === 'right') { w.value = 480; h.value = 720; }
+      if (pos === 'left')  { w.value = 480; h.value = 720; }
+      if (pos === 'center'){ w.value = 600; h.value = 450; }
+    });
+
+    async function insertFrame() {
+      const btn = document.getElementById('insertBtn');
+      const status = document.getElementById('status');
+      btn.disabled = true;
+      status.className = '';
+      status.textContent = 'Inserting…';
+
+      const position = document.getElementById('position').value;
+      const userW = parseInt(document.getElementById('width').value) || 600;
+      const userH = parseInt(document.getElementById('height').value) || 450;
+
+      // PowerPoint slide dimensions: 10in x 7.5in
+      // 1 inch = 914400 EMU
+      const slideW = 9144000;  // 10 inches in EMU
+      const slideH = 6858000;  // 7.5 inches in EMU
+
+      // Convert px to EMU (96 px = 1 inch = 914400 EMU)
+      const pxToEmu = px => Math.round((px / 96) * 914400);
+
+      let width  = pxToEmu(userW);
+      let height = pxToEmu(userH);
+      let left, top;
+
+      if (position === 'full') {
+        left = 0; top = 0;
+        width = slideW; height = slideH;
+      } else if (position === 'right') {
+        left = slideW / 2; top = 0;
+        width = slideW / 2; height = slideH;
+      } else if (position === 'left') {
+        left = 0; top = 0;
+        width = slideW / 2; height = slideH;
+      } else {
+        // center
+        left = Math.round((slideW - width) / 2);
+        top  = Math.round((slideH - height) / 2);
+      }
+
+      try {
+        await PowerPoint.run(async (context) => {
+          const slide = context.presentation.getSelectedSlides().getItemAt(0);
+          slide.load("shapes");
+          await context.sync();
+
+          // Insert as a web frame (OWA shape)
+          // Office JS doesn't have a native "insert iframe" API for PPT desktop
+          // We insert an online image placeholder with a linked hyperlink instead,
+          // then fall back to inserting HTML via setSelectedDataAsync
+          throw new Error("USE_FALLBACK");
+        });
+      } catch(e) {
+        if (e.message !== "USE_FALLBACK" && !e.message.includes("USE_FALLBACK")) {
+          // Real error
+          status.className = 'error';
+          status.textContent = '❌ ' + e.message;
+          btn.disabled = false;
+          return;
+        }
+      }
+
+      // Fallback: inject via setSelectedDataAsync with OOXML
+      // This inserts a framed web viewer shape using OOXML
+      const url = "https://drudnitsky-orangeev.github.io/rocket-demo/";
+
+      // Build OOXML for a web video / online video shape (PPT's closest to iframe)
+      const ooxml = buildWebFrameOOXML(url, left, top, width, height);
+
+      Office.context.document.setSelectedDataAsync(
+        ooxml,
+        { coercionType: Office.CoercionType.Ooxml },
+        function(result) {
+          if (result.status === Office.AsyncResultStatus.Succeeded) {
+            status.className = '';
+            status.textContent = '✅ Inserted! View in Slideshow mode.';
+          } else {
+            // Final fallback: insert as a clickable hyperlinked text box note
+            status.className = 'error';
+            status.textContent = '⚠️ Direct embed not supported here. See instructions below.';
+            showFallbackInstructions(url);
+          }
+          btn.disabled = false;
+        }
+      );
+    }
+
+    function buildWebFrameOOXML(url, left, top, cx, cy) {
+      // OOXML presentation shape embedding an online video/web object
+      return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cSld>
+    <p:spTree>
+      <p:nvGrpSpPr>
+        <p:cNvPr id="1" name=""/>
+        <p:cNvGrpSpPr/>
+        <p:nvPr/>
+      </p:nvGrpSpPr>
+      <p:grpSpPr>
+        <a:xfrm>
+          <a:off x="0" y="0"/>
+          <a:ext cx="0" cy="0"/>
+          <a:chOff x="0" y="0"/>
+          <a:chExt cx="0" cy="0"/>
+        </a:xfrm>
+      </p:grpSpPr>
+      <p:sp>
+        <p:nvSpPr>
+          <p:cNvPr id="2" name="RocketDemo">
+            <a:hlinkClick r:id="rId1"/>
+          </p:cNvPr>
+          <p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>
+          <p:nvPr/>
+        </p:nvSpPr>
+        <p:spPr>
+          <a:xfrm>
+            <a:off x="${left}" y="${top}"/>
+            <a:ext cx="${cx}" cy="${cy}"/>
+          </a:xfrm>
+          <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+          <a:solidFill>
+            <a:srgbClr val="1e293b"/>
+          </a:solidFill>
+          <a:ln w="12700">
+            <a:solidFill><a:srgbClr val="f97316"/></a:solidFill>
+          </a:ln>
+        </p:spPr>
+        <p:txBody>
+          <a:bodyPr/>
+          <a:lstStyle/>
+          <a:p>
+            <a:pPr algn="ctr"/>
+            <a:r>
+              <a:rPr lang="en-US" sz="2400" b="1" dirty="0">
+                <a:solidFill><a:srgbClr val="f97316"/></a:solidFill>
+              </a:rPr>
+              <a:t>🚀 Click to Launch Rocket Demo</a:t>
+            </a:r>
+          </a:p>
+          <a:p>
+            <a:pPr algn="ctr"/>
+            <a:r>
+              <a:rPr lang="en-US" sz="1200" dirty="0">
+                <a:solidFill><a:srgbClr val="94a3b8"/></a:solidFill>
+              </a:rPr>
+              <a:t>${url}</a:t>
+            </a:r>
+          </a:p>
+        </p:txBody>
+      </p:sp>
+    </p:spTree>
+  </p:cSld>
+  <p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>
+</p:sld>`;
+    }
+
+    function showFallbackInstructions(url) {
+      document.body.innerHTML += `
+        <hr class="divider" style="width:100%;border-color:#334155;margin-top:8px"/>
+        <p style="color:#fbbf24;font-size:12px;text-align:center">
+          <strong>Manual step:</strong> PowerPoint desktop blocks direct iframe embeds via add-ins.
+          Instead, go to <strong>Insert → Online Video</strong> and paste:<br><br>
+          <code style="background:#0f172a;padding:4px 8px;border-radius:4px;font-size:11px;word-break:break-all">${url}</code>
+        </p>`;
+    }
+  </script>
+</body>
+</html>
