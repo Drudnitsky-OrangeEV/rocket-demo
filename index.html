@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+* { margin: 0; box-sizing: border-box; }
+body {
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: #1e293b;
+    font-family: 'Segoe UI', sans-serif;
+    gap: 20px;
+}
+button.launch-btn {
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    color: white; border: none; border-radius: 12px;
+    padding: 16px 40px; font-size: 16px; font-weight: 700;
+    cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 4px 20px rgba(99,102,241,0.4);
+}
+button.launch-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 28px rgba(99,102,241,0.5); }
+button.launch-btn:active { transform: scale(0.97); }
+.err-btn { background: linear-gradient(135deg, #ef4444, #dc2626) !important; box-shadow: 0 4px 20px rgba(239,68,68,0.4) !important; }
+p.hint { color: #94a3b8; font-size: 13px; }
+#rocket-overlay {
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(0,0,0,0.75);
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+}
+#rocket-scene {
+    width: 280px; height: 380px;
+    position: relative; overflow: hidden;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #0f172a 0%, #1e293b 60%, #334155 100%);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+#rocket-scene::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+        radial-gradient(1px 1px at 20px 30px, white, transparent),
+        radial-gradient(1px 1px at 80px 60px, white, transparent),
+        radial-gradient(1px 1px at 140px 20px, white, transparent),
+        radial-gradient(1px 1px at 200px 80px, white, transparent),
+        radial-gradient(1.5px 1.5px at 60px 100px, #fbbf24, transparent),
+        radial-gradient(1px 1px at 160px 140px, white, transparent),
+        radial-gradient(1px 1px at 40px 180px, white, transparent),
+        radial-gradient(1.5px 1.5px at 220px 50px, #60a5fa, transparent),
+        radial-gradient(1px 1px at 100px 160px, white, transparent),
+        radial-gradient(1px 1px at 240px 130px, white, transparent);
+    animation: twinkle 2s ease-in-out infinite alternate;
+}
+@keyframes twinkle { 0% { opacity: 0.6; } 100% { opacity: 1; } }
+.rocket-ground {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 50px;
+    background: linear-gradient(180deg, #475569, #334155);
+    border-top: 2px solid #64748b; z-index: 11;
+}
+.launch-tower {
+    position: absolute; bottom: 50px; left: 73px;
+    width: 12px; height: 173px;
+    background: repeating-linear-gradient(0deg, #94a3b8 0px, #94a3b8 4px, #64748b 4px, #64748b 8px);
+    border-radius: 2px 2px 0 0;
+}
+.launch-arm {
+    position: absolute; top: 20px; right: -30px;
+    width: 30px; height: 4px;
+    background: #94a3b8; border-radius: 2px;
+    transform-origin: left center;
+    transition: transform 0.5s ease;
+}
+.launch-arm.detach { transform: rotate(-30deg); opacity: 0.5; }
+.rocket-ship {
+    position: absolute; bottom: 61px; left: 110px;
+    width: 40px;
+    transition: transform 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 12;
+}
+.rocket-ship.liftoff {
+    transform: translateY(-500px);
+    transition: transform 1.8s cubic-bezier(0.3, 0, 0.7, 1);
+}
+.rocket-nose {
+    width: 0; height: 0;
+    border-left: 20px solid transparent;
+    border-right: 20px solid transparent;
+    border-bottom: 30px solid #f57e0f;
+    filter: drop-shadow(0 -2px 4px rgba(245,126,15,0.3));
+}
+.rocket-body {
+    width: 40px; height: 95px;
+    background: linear-gradient(90deg, #dfe5eb, #f8fafc, #dfe5eb);
+    border: 1px solid #cbd5e1;
+    position: relative;
+}
+.rocket-window {
+    width: 14px; height: 14px;
+    background: radial-gradient(circle at 40% 40%, #93c5fd, #3b82f6);
+    border: 2px solid #94a3b8; border-radius: 50%;
+    position: absolute; top: 12px; left: 11px;
+    box-shadow: inset 0 0 4px rgba(255,255,255,0.4);
+    z-index: 3;
+}
+.window-face {
+    display: none;
+    position: absolute; top: 2px; left: 2px;
+    width: 8px; height: 8px;
+    background: #f8fafc; border-radius: 50%;
+    border: 1px solid #cbd5e1;
+}
+.window-face::after {
+    content: '';
+    position: absolute; top: 2px; left: 1px;
+    width: 5px; height: 3px;
+    background: #60a5fa; border-radius: 50%;
+}
+.rocket-window.occupied .window-face { display: block; }
+.rocket-logo {
+    position: absolute; top: 30px; left: 50%; transform: translateX(-50%);
+    width: 24px; height: 24px; border-radius: 50%; z-index: 4; object-fit: contain;
+}
+.rocket-door {
+    position: absolute; bottom: 1px; right: 5px;
+    width: 16px; height: 16px;
+    background: #f57e0f; border: 1px solid #94a3b8;
+    border-radius: 7px 7px 0 0;
+    transform-origin: right center;
+    transition: transform 0.4s ease; z-index: 2;
+}
+.rocket-door.open { transform: perspective(120px) rotateY(80deg); background: #334155; }
+.rocket-fins { position: relative; width: 40px; height: 9px; }
+.rocket-fin-l { position: absolute; top: -43px; left: -23px; width: 0; height: 0; border-top: 50px solid transparent; border-right: 23px solid #f57e0f; }
+.rocket-fin-r { position: absolute; top: -43px; right: -23px; width: 0; height: 0; border-top: 50px solid transparent; border-left: 23px solid #f57e0f; }
+.rocket-fin-c { position: absolute; top: 0; left: 5.5px; width: 29px; height: 9px; background: linear-gradient(180deg, #292929, #5e5050); border-radius: 0 0 6px 6px; }
+.rocket-exhaust { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); opacity: 0; transition: opacity 0.3s; z-index: -1; }
+.rocket-exhaust.active, .rocket-exhaust.full { opacity: 1; }
+.exhaust-core { position: absolute; top: 0; left: 50%; transform: translateX(-50%); border-radius: 0 0 50% 50%; }
+.exhaust-outer { position: absolute; top: 0; left: 50%; transform: translateX(-50%); border-radius: 0 0 50% 50%; opacity: 0.6; }
+.exhaust-glow { position: absolute; top: 0; left: 50%; transform: translateX(-50%); border-radius: 50%; }
+.rocket-exhaust.active .exhaust-core { width:13px;height:40px;background:linear-gradient(180deg,#fef3c7,#fbbf24 20%,#f97316 50%,#ef4444 80%,transparent); }
+.rocket-exhaust.active .exhaust-outer { width:23px;height:32px;background:linear-gradient(180deg,rgba(251,191,36,0.6),rgba(249,115,22,0.4) 40%,rgba(239,68,68,0.2) 70%,transparent); }
+.rocket-exhaust.active .exhaust-glow { width:17px;height:6px;background:radial-gradient(ellipse,rgba(254,243,199,0.9),transparent); }
+.rocket-exhaust.full .exhaust-core { width:13px;height:59px;background:linear-gradient(180deg,#fef3c7,#fbbf24 20%,#f97316 50%,#ef4444 80%,transparent); }
+.rocket-exhaust.full .exhaust-outer { width:23px;height:47px;background:linear-gradient(180deg,rgba(251,191,36,0.6),rgba(249,115,22,0.4) 40%,rgba(239,68,68,0.2) 70%,transparent); }
+.rocket-exhaust.full .exhaust-glow { width:17px;height:6px;background:radial-gradient(ellipse,rgba(254,243,199,0.9),transparent); }
+@keyframes exhaustFlicker { 0%{transform:translateX(-50%) scaleX(1)} 100%{transform:translateX(-50%) scaleX(0.8)} }
+.rocket-exhaust.active .exhaust-core,.rocket-exhaust.full .exhaust-core { animation: exhaustFlicker 0.08s ease-in-out infinite alternate; }
+.rocket-exhaust.active .exhaust-outer,.rocket-exhaust.full .exhaust-outer { animation: exhaustFlicker 0.12s ease-in-out infinite alternate-reverse; }
+.pad-fire { position: absolute; bottom: 44px; left: 105px; width: 79px; height: 20px; opacity: 0; transition: opacity 0.4s; z-index: 10; }
+.pad-fire.active { opacity: 1; }
+.pad-fire.intense { opacity: 1; }
+.pad-flame { position: absolute; bottom: 0; border-radius: 50% 50% 40% 40%; animation: padFlicker 0.1s ease-in-out infinite alternate; }
+.pad-flame:nth-child(1) { left:5px;width:16px;height:18px;background:radial-gradient(ellipse at bottom,#fbbf24,#f97316 60%,transparent) }
+.pad-flame:nth-child(2) { left:20px;width:24px;height:22px;background:radial-gradient(ellipse at bottom,#fef3c7,#fbbf24 40%,#f97316 70%,transparent) }
+.pad-flame:nth-child(3) { left:42px;width:20px;height:16px;background:radial-gradient(ellipse at bottom,#fbbf24,#ef4444 60%,transparent) }
+.pad-fire.intense .pad-flame:nth-child(1){height:28px;width:20px;left:0}
+.pad-fire.intense .pad-flame:nth-child(2){height:32px;width:32px;left:16px}
+.pad-fire.intense .pad-flame:nth-child(3){height:26px;width:24px;left:42px}
+.pad-glow { position:absolute;bottom:-4px;left:-10px;width:100px;height:12px;background:radial-gradient(ellipse,rgba(251,191,36,0.4),transparent);border-radius:50%; }
+.pad-fire.intense .pad-glow{width:120px;left:-20px;background:radial-gradient(ellipse,rgba(251,191,36,0.6),transparent)}
+@keyframes padFlicker{0%{transform:scaleX(1) scaleY(1)}100%{transform:scaleX(0.85) scaleY(1.1)}}
+.rocket-smoke { position: absolute; bottom: 30px; left: 75px; width: 130px; height: 60px; pointer-events: none; opacity: 0; transition: opacity 0.5s; z-index: 9; }
+.rocket-smoke.active { opacity: 1; }
+.smoke-puff { position: absolute; border-radius: 50%; background: radial-gradient(circle, rgba(148,163,184,0.6), transparent); animation: puff 2s ease-out infinite; }
+.smoke-puff:nth-child(1){width:30px;height:30px;bottom:0;left:15px;animation-delay:0s}
+.smoke-puff:nth-child(2){width:40px;height:40px;bottom:5px;left:35px;animation-delay:0.3s}
+.smoke-puff:nth-child(3){width:25px;height:25px;bottom:0;left:60px;animation-delay:0.6s}
+.smoke-puff:nth-child(4){width:35px;height:35px;bottom:10px;left:25px;animation-delay:0.9s}
+.smoke-puff:nth-child(5){width:28px;height:28px;bottom:5px;left:80px;animation-delay:0.4s}
+.smoke-puff:nth-child(6){width:22px;height:22px;bottom:8px;left:5px;animation-delay:0.7s}
+.smoke-puff:nth-child(7){width:32px;height:32px;bottom:2px;left:55px;animation-delay:1.1s}
+@keyframes puff{0%{transform:scale(0.5) translateY(0);opacity:0.8}100%{transform:scale(2.5) translateY(-40px);opacity:0}}
+.rocket-countdown { position: absolute; top: 24px; left: 0; right: 0; text-align: center; font-family: 'Consolas', monospace; font-size: 48px; font-weight: 900; color: #f8fafc; text-shadow: 0 0 20px rgba(59,130,246,0.5), 0 2px 8px rgba(0,0,0,0.5); z-index: 20; transition: all 0.3s; }
+.rocket-countdown.small { font-size: 18px; top: 30px; color: #4ade80; text-shadow: 0 0 20px rgba(74,222,128,0.5); }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-2px) rotate(-0.5deg)} 75%{transform:translateX(2px) rotate(0.5deg)} }
+.rocket-shake { animation: shake 0.15s ease-in-out infinite; }
+.explosion-flash { position: absolute; z-index: 30; border-radius: 50%; background: radial-gradient(circle, #fef3c7, #fbbf24 30%, #f97316 50%, rgba(239,68,68,0.6) 70%, transparent); transform: scale(0); opacity: 0; animation: explodeFlash 0.6s ease-out forwards; }
+@keyframes explodeFlash { 0% { transform: scale(0); opacity: 1; } 30% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(2.5); opacity: 0; } }
+.debris { position: absolute; z-index: 25; border-radius: 2px; }
+@keyframes debrisfly { 0% { opacity: 1; transform: translate(0,0) rotate(0deg); } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); } }
+.fireball { position: absolute; z-index: 22; border-radius: 50%; animation: fireballGrow 1.5s ease-out forwards; }
+@keyframes fireballGrow { 0% { transform: scale(0.3); opacity: 1; } 40% { transform: scale(1); opacity: 0.9; } 100% { transform: scale(1.5); opacity: 0; } }
+.explosion-smoke { position: absolute; z-index: 21; border-radius: 50%; animation: explodeSmoke 2.5s ease-out forwards; }
+@keyframes explodeSmoke { 0% { transform: scale(0.5); opacity: 0.7; } 100% { transform: scale(3) translateY(-30px); opacity: 0; } }
+.spaceman { position: absolute; bottom: 52px; left: 290px; width: 24px; height: 36px; z-index: 15; transform: scaleX(-1); }
+.spaceman.running { animation: bobble 0.25s ease-in-out infinite; }
+@keyframes bobble { 0%,100%{transform:scaleX(-1) translateY(0) rotate(-2deg)} 50%{transform:scaleX(-1) translateY(-5px) rotate(2deg)} }
+.spaceman.jumping { animation: jumpArc 0.7s ease-in forwards; }
+@keyframes jumpArc { 0%{left:155px;bottom:52px;transform:scaleX(-1) scale(1)} 35%{left:148px;bottom:120px;transform:scaleX(-1) scale(0.9) rotate(15deg)} 65%{left:140px;bottom:108px;transform:scaleX(-1) scale(0.7) rotate(-10deg)} 90%{left:136px;bottom:96px;transform:scaleX(-1) scale(0.35);opacity:0.7} 100%{left:136px;bottom:93px;transform:scaleX(-1) scale(0);opacity:0} }
+.spaceman-helmet { width:16px;height:16px;background:#f8fafc;border:2px solid #cbd5e1;border-radius:50%;margin:0 auto;position:relative; }
+.spaceman-visor { width:9px;height:7px;background:linear-gradient(135deg,#60a5fa,#3b82f6);border-radius:50%;position:absolute;top:4px;left:3px;border:1px solid #94a3b8; }
+.spaceman-body { width:14px;height:12px;background:#e2e8f0;border:1px solid #cbd5e1;border-radius:3px;margin:0 auto;position:relative; }
+.spaceman-legs { display:flex;justify-content:center;gap:3px; }
+.spaceman-leg { width:4px;height:7px;background:#94a3b8;border-radius:0 0 2px 2px; }
+.spaceman.running .spaceman-leg:first-child{animation:legL 0.25s ease-in-out infinite}
+.spaceman.running .spaceman-leg:last-child{animation:legR 0.25s ease-in-out infinite}
+@keyframes legL{0%,100%{transform:rotate(-20deg)}50%{transform:rotate(20deg)}}
+@keyframes legR{0%,100%{transform:rotate(20deg)}50%{transform:rotate(-20deg)}}
+.spaceman-envelope { position:absolute;top:1px;left:-13px;width:14px;height:10px;background:#fbbf24;border:1px solid #f59e0b;border-radius:1px; }
+.spaceman-envelope::after { content:'';position:absolute;top:0;left:0;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:5px solid #f59e0b; }
+</style>
+</head>
+<body>
+<button class="launch-btn" onclick="demo()">📨 Send Info Request (Demo)</button>
+<button class="launch-btn err-btn" onclick="demoError()">💥 Simulate Error</button>
+<p class="hint">Success = liftoff &nbsp;|&nbsp; Error = kaboom</p>
+
+<script>
+var LOGO_SRC = "data:image/png;base64,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";
+
+function rocketLaunch(emailPromise) {
+  return new Promise(function(resolveAll) {
+    var overlay = document.createElement('div');
+    overlay.id = 'rocket-overlay';
+    overlay.innerHTML = [
+      '<div id="rocket-scene">',
+      '  <div class="rocket-countdown" id="rocket-cd">7</div>',
+      '  <div class="launch-tower" id="rocket-tower"><div class="launch-arm" id="rocket-arm"></div></div>',
+      '  <div class="rocket-ship" id="rocket-ship">',
+      '    <div class="rocket-nose"></div>',
+      '    <div class="rocket-body">',
+      '      <div class="rocket-window" id="rocket-window"><div class="window-face"></div></div>',
+      '      <img class="rocket-logo" id="rocket-logo" src="' + LOGO_SRC + '" alt="OEV">',
+      '      <div class="rocket-door" id="rocket-door"></div>',
+      '    </div>',
+      '    <div class="rocket-fins">',
+      '      <div class="rocket-fin-l"></div>',
+      '      <div class="rocket-fin-r"></div>',
+      '      <div class="rocket-fin-c"></div>',
+      '    </div>',
+      '    <div class="rocket-exhaust" id="rocket-exhaust">',
+      '      <div class="exhaust-glow"></div>',
+      '      <div class="exhaust-outer"></div>',
+      '      <div class="exhaust-core"></div>',
+      '    </div>',
+      '  </div>',
+      '  <div class="pad-fire" id="pad-fire">',
+      '    <div class="pad-flame"></div><div class="pad-flame"></div><div class="pad-flame"></div><div class="pad-glow"></div>',
+      '  </div>',
+      '  <div class="spaceman" id="spaceman">',
+      '    <div class="spaceman-helmet"><div class="spaceman-visor"></div></div>',
+      '    <div class="spaceman-body"><div class="spaceman-envelope"></div></div>',
+      '    <div class="spaceman-legs"><div class="spaceman-leg"></div><div class="spaceman-leg"></div></div>',
+      '  </div>',
+      '  <div class="rocket-smoke" id="rocket-smoke">',
+      '    <div class="smoke-puff"></div><div class="smoke-puff"></div><div class="smoke-puff"></div><div class="smoke-puff"></div>',
+      '    <div class="smoke-puff"></div><div class="smoke-puff"></div><div class="smoke-puff"></div>',
+      '  </div>',
+      '  <div class="rocket-ground"></div>',
+      '</div>',
+    ].join('\n');
+    document.body.appendChild(overlay);
+
+    var cd = document.getElementById('rocket-cd');
+    var ship = document.getElementById('rocket-ship');
+    var exhaust = document.getElementById('rocket-exhaust');
+    var padFire = document.getElementById('pad-fire');
+    var smoke = document.getElementById('rocket-smoke');
+    var arm = document.getElementById('rocket-arm');
+    var scene = document.getElementById('rocket-scene');
+    var door = document.getElementById('rocket-door');
+    var spaceman = document.getElementById('spaceman');
+    var rocketWindow = document.getElementById('rocket-window');
+    var tower = document.getElementById('rocket-tower');
+    var count = 7;
+    var emailResult = null;
+    var emailDone = false;
+
+    if (emailPromise && typeof emailPromise.then === 'function') {
+      emailPromise.then(function(r) { emailResult = r; emailDone = true; }).catch(function(e) {
+        emailResult = { error: e.message || 'Send failed' }; emailDone = true;
+      });
+    } else { emailDone = true; emailResult = emailPromise || {}; }
+
+    setTimeout(function() { spaceman.classList.add('running'); spaceman.style.transition = 'left 1.6s ease-out'; spaceman.style.left = '155px'; }, 100);
+    setTimeout(function() { door.classList.add('open'); }, 1400);
+    setTimeout(function() { spaceman.classList.remove('running'); spaceman.classList.add('jumping'); }, 1900);
+    setTimeout(function() { door.classList.remove('open'); rocketWindow.classList.add('occupied'); }, 2900);
+
+    var ticker = setInterval(function() {
+      count--;
+      cd.textContent = count;
+      if (count === 3) { smoke.classList.add('active'); exhaust.classList.add('active'); padFire.classList.add('active'); scene.classList.add('rocket-shake'); }
+      if (count === 1) { exhaust.classList.remove('active'); exhaust.classList.add('full'); padFire.classList.remove('active'); padFire.classList.add('intense'); }
+      if (count === 0) {
+        clearInterval(ticker);
+        var isError = emailResult && emailResult.error;
+        if (isError) {
+          cd.textContent = 'MALFUNCTION!'; cd.style.color = '#ef4444'; cd.style.textShadow = '0 0 30px rgba(239,68,68,0.8)';
+          setTimeout(function() {
+            ship.style.transition = 'opacity 0.1s'; ship.style.opacity = '0'; exhaust.style.opacity = '0'; scene.classList.remove('rocket-shake');
+            var rx = 130, ry = 200;
+            var flash = document.createElement('div'); flash.className = 'explosion-flash'; flash.style.cssText = 'left:'+(rx-60)+'px;top:'+(ry-60)+'px;width:120px;height:120px;'; scene.appendChild(flash);
+            var fbColors = ['#fbbf24','#f97316','#ef4444','#dc2626'];
+            for (var f=0;f<5;f++) { var fb = document.createElement('div'); fb.className = 'fireball'; var sz = 20+Math.random()*40; fb.style.cssText = 'left:'+(rx-sz/2+((Math.random()-0.5)*40))+'px;top:'+(ry-sz/2+((Math.random()-0.5)*30))+'px;width:'+sz+'px;height:'+sz+'px;background:radial-gradient(circle,'+fbColors[f%4]+','+fbColors[(f+1)%4]+' 60%,transparent);animation-delay:'+(f*0.1)+'s;'; scene.appendChild(fb); }
+            var debrisColors = ['#f8fafc','#ef4444','#f57e0f','#cbd5e1','#292929','#94a3b8'];
+            for (var d=0;d<18;d++) { var db = document.createElement('div'); db.className = 'debris'; var angle = (d/18)*Math.PI*2 + (Math.random()-0.5)*0.5; var dist = 60+Math.random()*100; var dx = Math.cos(angle)*dist; var dy = Math.sin(angle)*dist - 40; var dsz = 3+Math.random()*8; var rot = (Math.random()*720-360); db.style.cssText = 'left:'+rx+'px;top:'+ry+'px;width:'+dsz+'px;height:'+(dsz*0.6)+'px;background:'+debrisColors[d%debrisColors.length]+';--dx:'+dx+'px;--dy:'+dy+'px;--rot:'+rot+'deg;animation:debrisfly '+(0.6+Math.random()*0.8)+'s ease-out forwards;animation-delay:'+(Math.random()*0.15)+'s;'; scene.appendChild(db); }
+            for (var s=0;s<4;s++) { var sm = document.createElement('div'); sm.className = 'explosion-smoke'; var ssz = 30+Math.random()*30; sm.style.cssText = 'left:'+(rx-ssz/2+(Math.random()-0.5)*40)+'px;top:'+(ry-ssz/2+(Math.random()-0.5)*20)+'px;width:'+ssz+'px;height:'+ssz+'px;background:radial-gradient(circle,rgba(100,116,139,0.7),rgba(51,65,85,0.3),transparent);animation-delay:'+(0.2+s*0.15)+'s;'; scene.appendChild(sm); }
+            tower.style.transition = 'transform 0.5s, opacity 1s'; tower.style.transform = 'rotate(5deg)'; tower.style.opacity = '0.5';
+            padFire.classList.add('intense');
+            setTimeout(function() { cd.classList.add('small'); cd.style.fontSize = '14px'; cd.style.top = '40px'; cd.textContent = '\u26A0\uFE0F Email Not Sent, Contact Mission Control!'; padFire.style.transition = 'opacity 1s'; padFire.style.opacity = '0'; smoke.style.opacity = '0.3'; }, 1800);
+            setTimeout(function() { overlay.style.transition = 'opacity 0.5s'; overlay.style.opacity = '0'; setTimeout(function() { overlay.remove(); resolveAll(emailResult); }, 500); }, 4000);
+          }, 400);
+        } else {
+          cd.textContent = 'LIFTOFF!'; arm.classList.add('detach');
+          setTimeout(function() {
+            ship.classList.add('liftoff'); scene.classList.remove('rocket-shake');
+            setTimeout(function() { padFire.style.transition = 'opacity 0.8s'; padFire.style.opacity = '0'; }, 800);
+            setTimeout(function() { cd.classList.add('small'); cd.textContent = '\u2709\uFE0F Email Sent!'; smoke.classList.remove('active'); setTimeout(function() { overlay.style.transition = 'opacity 0.5s'; overlay.style.opacity = '0'; setTimeout(function() { overlay.remove(); resolveAll(emailResult); }, 500); }, 1500); }, 1200);
+          }, 300);
+        }
+      }
+    }, 1000);
+  });
+}
+
+async function demo() {
+  var fakeEmail = new Promise(function(resolve) { setTimeout(function() { resolve({ success: true }); }, 6000); });
+  await rocketLaunch(fakeEmail);
+}
+async function demoError() {
+  var fakeEmail = new Promise(function(_, reject) { setTimeout(function() { reject(new Error('SMTP connection refused')); }, 5000); });
+  await rocketLaunch(fakeEmail);
+}
+</script>
+</body>
+</html>
